@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, Product, Movement, AppState, Permission, UnitType } from './types.ts';
-import { db } from './firebase.ts';
+import { User, Product, Movement, AppState, Permission, UnitType } from './types';
+import { db } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -16,14 +15,14 @@ import {
   getDocs,
   writeBatch
 } from "firebase/firestore";
-import Login from './components/Login.tsx';
-import Dashboard from './components/Dashboard.tsx';
-import Inventory from './components/Inventory.tsx';
-import Movements from './components/Movements.tsx';
-import UserManagement from './components/UserManagement.tsx';
-import Sidebar from './components/Sidebar.tsx';
-import Audit from './components/Audit.tsx';
-import MovementModal from './components/MovementModal.tsx';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import Inventory from './components/Inventory';
+import Movements from './components/Movements';
+import UserManagement from './components/UserManagement';
+import Sidebar from './components/Sidebar';
+import Audit from './components/Audit';
+import MovementModal from './components/MovementModal';
 
 const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -35,12 +34,20 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'movements' | 'users' | 'audit'>('dashboard');
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
+  const calculateMinStock = (unit: UnitType): number => {
+    switch (unit) {
+      case 'CX': return 2;
+      case 'PC': return 5;
+      case 'KG': return 5;
+      default: return 10;
+    }
+  };
+
   const seedDatabase = async () => {
     try {
       const usersSnap = await getDocs(collection(db, "users"));
       const productsSnap = await getDocs(collection(db, "products"));
       
-      // Seed de usuário Admin apenas se não houver NENHUM usuário
       if (usersSnap.empty) {
         await addDoc(collection(db, "users"), {
           name: 'Administrador Lagoon',
@@ -51,42 +58,126 @@ const App: React.FC = () => {
         });
       }
 
-      // SÓ adiciona produtos se o banco de produtos estiver TOTALMENTE VAZIO (0 itens)
-      if (productsSnap.empty) {
-        const initialItems = [
-          { name: 'Heineken Long Neck', unit: 'UN', qty: 24, min: 10 },
-          { name: 'Gin Tanqueray', unit: 'UN', qty: 5, min: 2 },
-          { name: 'Batata Frita 2kg', unit: 'PC', qty: 10, min: 5 },
-          { name: 'Carne Moída', unit: 'KG', qty: 15, min: 5 }
+      // Se o Pão de Forma não estiver na lista, o banco está errado. Vamos resetar.
+      const hasOfficialList = productsSnap.docs.some(d => d.data().name === 'Pão de Forma');
+
+      if (!hasOfficialList) {
+        console.log("Banco de dados incompleto detectado. Sincronizando inventário oficial Lagoon...");
+        
+        const clearBatch = writeBatch(db);
+        productsSnap.docs.forEach(d => clearBatch.delete(d.ref));
+        await clearBatch.commit();
+
+        const officialInventory: {name: string, unit: UnitType, qty: number}[] = [
+          { name: 'Pão de Forma', unit: 'UN', qty: 30 },
+          { name: 'Pão Bisnaguinha', unit: 'UN', qty: 13 },
+          { name: 'Biscoito Vilma', unit: 'PC', qty: 9 },
+          { name: 'Óleo Composto', unit: 'UN', qty: 7 },
+          { name: 'Óleo de Cozinha', unit: 'UN', qty: 63 },
+          { name: 'Vinagre de Maçã', unit: 'UN', qty: 40 },
+          { name: 'Shoyo', unit: 'UN', qty: 2 },
+          { name: 'Molho de Alho', unit: 'UN', qty: 9 },
+          { name: 'M. de Pimenta Garrafa 1L', unit: 'UN', qty: 2 },
+          { name: 'Molho de Tomate 1,7kg', unit: 'UN', qty: 10 },
+          { name: 'Batata Palha 400g', unit: 'UN', qty: 4 },
+          { name: 'M. Vermelhão 1,01kg', unit: 'UN', qty: 2 },
+          { name: 'Caldo SB Carne 1,01kg', unit: 'UN', qty: 11 },
+          { name: 'Grão de Bico', unit: 'UN', qty: 15 },
+          { name: 'Adoçante', unit: 'UN', qty: 6 },
+          { name: 'Fermento (PCT/6)', unit: 'PC', qty: 2 },
+          { name: 'Milho', unit: 'UN', qty: 10 },
+          { name: 'Ervilha', unit: 'UN', qty: 10 },
+          { name: 'Molho de Tomate 300g', unit: 'UN', qty: 21 },
+          { name: 'Farinha de Trigo (PCT10)', unit: 'PC', qty: 3 },
+          { name: 'Suco em Pó Morango', unit: 'UN', qty: 2 },
+          { name: 'Suco em Pó Uva', unit: 'UN', qty: 4 },
+          { name: 'Arroz 5kg (PCT/6)', unit: 'PC', qty: 3 },
+          { name: 'Sal Refinado', unit: 'UN', qty: 10 },
+          { name: 'Feijão 1kg', unit: 'UN', qty: 21 },
+          { name: 'Farofa de Mandioca 1kg', unit: 'UN', qty: 7 },
+          { name: 'Açúcar Refinado 1kg', unit: 'UN', qty: 27 },
+          { name: 'Macarrão Parafuso', unit: 'UN', qty: 47 },
+          { name: 'Sal Sachê', unit: 'CX', qty: 2 },
+          { name: 'Creme de Leite', unit: 'CX', qty: 5 },
+          { name: 'Leite Condensado', unit: 'CX', qty: 2 },
+          { name: 'Veja Supremo', unit: 'UN', qty: 20 },
+          { name: 'Álcool Etílico 1L', unit: 'UN', qty: 6 },
+          { name: 'Bombril (PCT)', unit: 'PC', qty: 2 },
+          { name: 'Alcaparras', unit: 'UN', qty: 2 },
+          { name: 'Smirnoff', unit: 'UN', qty: 10 },
+          { name: 'Gin', unit: 'UN', qty: 24 },
+          { name: 'Suco Concentrado Manga', unit: 'UN', qty: 8 },
+          { name: 'Leite Integral', unit: 'CX', qty: 1 },
+          { name: 'Pacote de Garfo', unit: 'PC', qty: 19 },
+          { name: 'Papel Higiênico (PCT)', unit: 'PC', qty: 13 },
+          { name: 'Papel Toalha (PCT)', unit: 'PC', qty: 12 },
+          { name: 'Mel 250g', unit: 'UN', qty: 2 },
+          { name: 'Pratinho Isopor', unit: 'PC', qty: 23 },
+          { name: 'Linguiça Calabresa 2,5kg', unit: 'UN', qty: 15 },
+          { name: 'Rolo Folha de Alumínio', unit: 'UN', qty: 2 },
+          { name: 'Papel Manteiga', unit: 'UN', qty: 1 },
+          { name: 'Faca Descartável', unit: 'UN', qty: 20 },
+          { name: 'Toalha de Papel (PCT)', unit: 'PC', qty: 2 },
+          { name: 'Filé de Frango', unit: 'PC', qty: 12 },
+          { name: 'Língua (Fechada)', unit: 'CX', qty: 3 },
+          { name: 'Moela (PCT)', unit: 'PC', qty: 9 },
+          { name: 'Pernil', unit: 'CX', qty: 1 },
+          { name: 'Fígado (Peça)', unit: 'PC', qty: 2 },
+          { name: 'Carne Moída', unit: 'CX', qty: 1 },
+          { name: 'Barriga (Peça)', unit: 'PC', qty: 3 },
+          { name: 'Filé de Peixe', unit: 'CX', qty: 2 },
+          { name: 'Sobrecoxa', unit: 'UN', qty: 7 },
+          { name: 'Batata Frita Grossa', unit: 'PC', qty: 26 },
+          { name: 'Batata Frita Fina', unit: 'PC', qty: 8 },
+          { name: 'Pão de Alho', unit: 'UN', qty: 38 },
+          { name: 'Iogurte 1,1kg', unit: 'UN', qty: 17 },
+          { name: 'Melancia', unit: 'UN', qty: 3 },
+          { name: 'Energético Tropical', unit: 'UN', qty: 11 },
+          { name: 'Energético Melancia', unit: 'UN', qty: 6 },
+          { name: 'Heineken Long Neck', unit: 'PC', qty: 44 },
+          { name: 'Budweiser Long Neck', unit: 'PC', qty: 22 },
+          { name: 'Cachaça 51', unit: 'UN', qty: 12 },
+          { name: 'Melão', unit: 'UN', qty: 10 },
+          { name: 'Mamão', unit: 'UN', qty: 9 },
+          { name: 'Abacaxi', unit: 'UN', qty: 4 },
+          { name: 'Uva (PCT)', unit: 'PC', qty: 9 }
         ];
 
-        for (const item of initialItems) {
-          await addDoc(collection(db, "products"), {
+        const seedBatch = writeBatch(db);
+        officialInventory.forEach(item => {
+          const ref = doc(collection(db, "products"));
+          seedBatch.set(ref, {
             name: item.name,
-            unit: item.unit as UnitType,
+            unit: item.unit,
             quantity: item.qty,
-            minStock: item.min,
+            minStock: calculateMinStock(item.unit),
             unitPrice: 0,
             lastUpdated: Date.now()
           });
-        }
+        });
+        await seedBatch.commit();
       }
     } catch (e) {
       console.error("Erro no Seed:", e);
     }
   };
 
-  // Função utilitária para o Admin limpar o banco se necessário
-  const clearAllProducts = async () => {
-    if (!window.confirm("ATENÇÃO: Isso apagará TODOS os 213 produtos. Tem certeza?")) return;
+  const forceClearDatabase = async () => {
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+    if (!confirm("Isso apagará TODOS os dados atuais para recarregar a lista oficial do Lagoon. Continuar?")) return;
+    
+    setLoading(true);
     try {
       const snap = await getDocs(collection(db, "products"));
       const batch = writeBatch(db);
-      snap.docs.forEach((d) => batch.delete(d.ref));
+      snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      alert("Banco limpo com sucesso! O sistema irá recarregar os itens básicos.");
-      window.location.reload();
-    } catch (e) { alert("Erro ao limpar."); }
+      await seedDatabase();
+      alert("Banco restaurado com sucesso!");
+    } catch (e) {
+      alert("Erro ao limpar banco.");
+    }
+    setLoading(false);
   };
 
   const handleFirebaseError = (err: any) => {
@@ -216,7 +307,12 @@ const App: React.FC = () => {
     );
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando Lagoon...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+      <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p className="font-bold text-gray-500 animate-pulse text-center px-4">Sincronizando Lista Lagoon GastroBar...</p>
+    </div>
+  );
 
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
@@ -227,25 +323,25 @@ const App: React.FC = () => {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={currentUser} onLogout={handleLogout} />
       
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        <header className="mb-6 flex justify-between items-center">
+        <header className="mb-6 flex flex-wrap justify-between items-center gap-4">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Lagoon GastroBar</h1>
-            <p className="text-gray-500 text-xs md:text-sm">Controle de Estoque</p>
+            <p className="text-gray-500 text-xs md:text-sm">Controle de Estoque Profissional</p>
           </div>
           <div className="flex items-center space-x-2">
             {currentUser.role === 'ADMIN' && (
-              <button 
-                onClick={clearAllProducts}
-                className="text-[10px] bg-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-red-600 hover:text-white transition-colors"
-              >
-                LIMPAR BANCO (ERRO 213)
+              <button onClick={forceClearDatabase} className="bg-gray-100 text-gray-500 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-red-600 hover:text-white transition-all border border-gray-200">
+                ⚙️ FORÇAR RESET
               </button>
             )}
             {hasPermission('register_movements') && (
-              <button onClick={() => setIsMoveModalOpen(true)} className="hidden sm:block bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md">
+              <button onClick={() => setIsMoveModalOpen(true)} className="hidden sm:block bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-red-700 transition-colors">
                 🔄 Movimentação
               </button>
             )}
+            <div className="h-10 w-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200">
+              {currentUser.name.charAt(0)}
+            </div>
           </div>
         </header>
 
@@ -265,7 +361,7 @@ const App: React.FC = () => {
       </main>
 
       {hasPermission('register_movements') && (
-        <button onClick={() => setIsMoveModalOpen(true)} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-40">
+        <button onClick={() => setIsMoveModalOpen(true)} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-40 active:scale-95 transition-transform">
           🔄
         </button>
       )}

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { User, Permission } from '../types';
+import { User, Permission } from '../types.ts';
 
 interface SidebarProps {
   activeTab: 'dashboard' | 'inventory' | 'movements' | 'users';

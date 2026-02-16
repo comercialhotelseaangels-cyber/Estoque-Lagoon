@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Product, Movement, AppState, Permission, UnitType } from './types';
-import { db } from './firebase';
+import { User, Product, Movement, AppState, Permission, UnitType } from './types.ts';
+import { db } from './firebase.ts';
 import { 
   collection, 
   onSnapshot, 
@@ -15,12 +15,12 @@ import {
   setDoc,
   getDocs
 } from "firebase/firestore";
-import Login from './components/Login';
-import Dashboard from './components/Dashboard';
-import Inventory from './components/Inventory';
-import Movements from './components/Movements';
-import UserManagement from './components/UserManagement';
-import Sidebar from './components/Sidebar';
+import Login from './components/Login.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import Inventory from './components/Inventory.tsx';
+import Movements from './components/Movements.tsx';
+import UserManagement from './components/UserManagement.tsx';
+import Sidebar from './components/Sidebar.tsx';
 
 const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -40,7 +40,6 @@ const App: React.FC = () => {
       const usersSnap = await getDocs(collection(db, "users"));
       const productsSnap = await getDocs(collection(db, "products"));
       
-      // 1. Criar Admin Inicial
       if (usersSnap.empty) {
         await addDoc(collection(db, "users"), {
           name: 'Administrador Lagoon',
@@ -51,12 +50,9 @@ const App: React.FC = () => {
         });
       }
 
-      // 2. Verificar se a lista real já existe. Se não, importa tudo.
       const hasRealData = productsSnap.docs.some(doc => doc.data().name === 'Pão de Forma');
       
       if (!hasRealData) {
-        console.log("Iniciando importação do estoque real...");
-        
         const fullInventory: {name: string, unit: UnitType, qty: number}[] = [
           { name: 'Pão de Forma', unit: 'UN', qty: 30 },
           { name: 'Pão Bisnaguinha', unit: 'UN', qty: 13 },
@@ -131,7 +127,6 @@ const App: React.FC = () => {
           { name: 'Uva (PCT)', unit: 'PC', qty: 9 }
         ];
 
-        // Se existirem apenas os 5 produtos de teste iniciais, vamos removê-los para limpar o banco antes da carga real
         if (productsSnap.size <= 6) {
           for (const d of productsSnap.docs) {
              await deleteDoc(doc(db, "products", d.id));
@@ -148,7 +143,6 @@ const App: React.FC = () => {
             lastUpdated: Date.now()
           });
         }
-        console.log("Importação concluída com sucesso!");
       }
     } catch (e) {
       console.error("Erro no Seed:", e);
@@ -280,19 +274,12 @@ const App: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 overflow-y-auto">
-        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border-t-8 border-red-600 p-8 my-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border-t-8 border-red-600 p-8">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-3xl mb-6 mx-auto">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">Ação Necessária no Firebase</h2>
-          <div className="space-y-6 text-gray-600 text-sm leading-relaxed">
-            <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-              <p className="font-bold text-red-800 mb-1">Erro Detectado:</p>
-              <p className="font-mono text-xs">{error.message}</p>
-            </div>
-          </div>
-          <div className="mt-10 flex flex-col sm:flex-row gap-4">
-            <button onClick={() => window.location.reload()} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all shadow-lg shadow-red-100">JÁ CORRIGI, RECARREGAR</button>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">Erro de Conexão</h2>
+          <p className="text-gray-600 text-center mb-6">{error.message}</p>
+          <button onClick={() => window.location.reload()} className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all">RECARREGAR</button>
         </div>
       </div>
     );
@@ -303,7 +290,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-medium animate-pulse">Sincronizando Estoque Lagoon...</p>
+          <p className="text-gray-500 font-medium">Sincronizando Estoque Lagoon...</p>
         </div>
       </div>
     );
@@ -322,17 +309,14 @@ const App: React.FC = () => {
         <header className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Lagoon GastroBar Estoque</h1>
-            <p className="text-gray-500 text-sm flex items-center">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-              Conectado ao Firebase
-            </p>
+            <p className="text-gray-500 text-sm">Conectado ao Firebase</p>
           </div>
           <div className="flex items-center space-x-3">
             <div className="text-right hidden sm:block">
               <p className="font-bold text-gray-700 leading-none">{currentUser.name}</p>
               <p className="text-[10px] text-red-600 font-black uppercase mt-1 tracking-widest">{currentUser.role}</p>
             </div>
-            <div className="h-11 w-11 bg-red-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200 transform rotate-3">
+            <div className="h-11 w-11 bg-red-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200">
               {currentUser.name.charAt(0)}
             </div>
           </div>

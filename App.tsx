@@ -21,6 +21,8 @@ import Inventory from './components/Inventory.tsx';
 import Movements from './components/Movements.tsx';
 import UserManagement from './components/UserManagement.tsx';
 import Sidebar from './components/Sidebar.tsx';
+import Audit from './components/Audit.tsx';
+import MovementModal from './components/MovementModal.tsx';
 
 const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,7 +31,8 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{message: string, code: string} | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'movements' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'movements' | 'users' | 'audit'>('dashboard');
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
   const calculateMinStock = (unit: UnitType): number => {
     return unit === 'CX' ? 1 : 5;
@@ -46,14 +49,14 @@ const App: React.FC = () => {
           email: 'admin@lagoon.com',
           pin: '1234',
           role: 'ADMIN',
-          permissions: ['view_dashboard', 'view_inventory', 'edit_inventory', 'register_movements', 'view_movements', 'view_financials', 'manage_users']
+          permissions: ['view_dashboard', 'view_inventory', 'edit_inventory', 'register_movements', 'view_movements', 'view_financials', 'manage_users', 'view_audit']
         });
       }
 
       const hasRealData = productsSnap.docs.some(doc => doc.data().name === 'Pão de Forma');
       
       if (!hasRealData) {
-        const fullInventory: {name: string, unit: UnitType, qty: number}[] = [
+        const fullInventory = [
           { name: 'Pão de Forma', unit: 'UN', qty: 30 },
           { name: 'Pão Bisnaguinha', unit: 'UN', qty: 13 },
           { name: 'Biscoito Vilma', unit: 'PC', qty: 9 },
@@ -136,9 +139,9 @@ const App: React.FC = () => {
         for (const item of fullInventory) {
           await addDoc(collection(db, "products"), {
             name: item.name,
-            unit: item.unit,
+            unit: item.unit as UnitType,
             quantity: item.qty,
-            minStock: calculateMinStock(item.unit),
+            minStock: calculateMinStock(item.unit as UnitType),
             unitPrice: 0,
             lastUpdated: Date.now()
           });
@@ -227,7 +230,7 @@ const App: React.FC = () => {
   };
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
-    if (!hasPermission('edit_inventory')) return;
+    if (!hasPermission('edit_inventory') && !hasPermission('view_audit')) return;
     try {
       await updateDoc(doc(db, "products", id), { ...updates, lastUpdated: Date.now() });
     } catch (e) { console.error(e); }
@@ -303,34 +306,63 @@ const App: React.FC = () => {
   const stateContext: AppState = { products, movements, users, currentUser };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={currentUser} onLogout={handleLogout} />
+      
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        <header className="mb-8 flex justify-between items-center">
+        <header className="mb-6 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Lagoon GastroBar Estoque</h1>
-            <p className="text-gray-500 text-sm">Conectado ao Firebase</p>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Lagoon GastroBar</h1>
+            <p className="text-gray-500 text-xs md:text-sm">Sistema de Controle de Estoque</p>
           </div>
-          <div className="flex items-center space-x-3">
-            <div className="text-right hidden sm:block">
-              <p className="font-bold text-gray-700 leading-none">{currentUser.name}</p>
-              <p className="text-[10px] text-red-600 font-black uppercase mt-1 tracking-widest">{currentUser.role}</p>
-            </div>
-            <div className="h-11 w-11 bg-red-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200">
+          <div className="flex items-center space-x-2 md:space-x-3">
+            {hasPermission('register_movements') && (
+              <button 
+                onClick={() => setIsMoveModalOpen(true)}
+                className="hidden sm:flex bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 items-center space-x-2"
+              >
+                <span>🔄</span>
+                <span>Movimentação</span>
+              </button>
+            )}
+            <div className="h-10 w-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200">
               {currentUser.name.charAt(0)}
             </div>
           </div>
         </header>
 
-        {activeTab === 'dashboard' && hasPermission('view_dashboard') && (
-          <Dashboard state={stateContext} registerMovement={registerMovement} canViewFinancials={hasPermission('view_financials')} canRegisterMovements={hasPermission('register_movements')} />
-        )}
-        {activeTab === 'inventory' && hasPermission('view_inventory') && (
-          <Inventory products={products} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} registerMovement={registerMovement} canEdit={hasPermission('edit_inventory')} canRegister={hasPermission('register_movements')} canViewFinancials={hasPermission('view_financials')} />
-        )}
-        {activeTab === 'movements' && hasPermission('view_movements') && <Movements movements={movements} />}
-        {activeTab === 'users' && hasPermission('manage_users') && <UserManagement users={users} manageUser={manageUser} />}
+        <div className="max-w-7xl mx-auto">
+          {activeTab === 'dashboard' && hasPermission('view_dashboard') && (
+            <Dashboard state={stateContext} registerMovement={registerMovement} canViewFinancials={hasPermission('view_financials')} canRegisterMovements={hasPermission('register_movements')} />
+          )}
+          {activeTab === 'inventory' && hasPermission('view_inventory') && (
+            <Inventory products={products} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} registerMovement={registerMovement} canEdit={hasPermission('edit_inventory')} canRegister={hasPermission('register_movements')} canViewFinancials={hasPermission('view_financials')} />
+          )}
+          {activeTab === 'movements' && hasPermission('view_movements') && <Movements movements={movements} />}
+          {activeTab === 'users' && hasPermission('manage_users') && <UserManagement users={users} manageUser={manageUser} />}
+          {activeTab === 'audit' && hasPermission('view_audit') && (
+            <Audit products={products} updateProduct={updateProduct} registerMovement={registerMovement} currentUser={currentUser} />
+          )}
+        </div>
       </main>
+
+      {/* Floating Action Button for Mobile Movement */}
+      {hasPermission('register_movements') && (
+        <button 
+          onClick={() => setIsMoveModalOpen(true)}
+          className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-40 active:scale-90 transition-transform"
+        >
+          🔄
+        </button>
+      )}
+
+      {isMoveModalOpen && (
+        <MovementModal 
+          products={products} 
+          onClose={() => setIsMoveModalOpen(false)} 
+          onRegister={registerMovement} 
+        />
+      )}
     </div>
   );
 };

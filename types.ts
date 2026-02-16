@@ -8,7 +8,8 @@ export type Permission =
   | 'register_movements' 
   | 'view_movements' 
   | 'view_financials' 
-  | 'manage_users';
+  | 'manage_users'
+  | 'view_audit';
 
 export interface Product {
   id: string;
@@ -55,4 +56,5 @@ export const ALL_PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'view_movements', label: 'Ver Histórico' },
   { id: 'view_financials', label: 'Ver Valores Financeiros' },
   { id: 'manage_users', label: 'Gerenciar Usuários' },
+  { id: 'view_audit', label: 'Realizar Averiguação' },
 ];

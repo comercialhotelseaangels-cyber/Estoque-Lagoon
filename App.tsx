@@ -13,7 +13,8 @@ import {
   orderBy, 
   limit, 
   setDoc,
-  getDocs
+  getDocs,
+  writeBatch
 } from "firebase/firestore";
 import Login from './components/Login.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -34,15 +35,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'movements' | 'users' | 'audit'>('dashboard');
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
-  const calculateMinStock = (unit: UnitType): number => {
-    return unit === 'CX' ? 1 : 5;
-  };
-
   const seedDatabase = async () => {
     try {
       const usersSnap = await getDocs(collection(db, "users"));
       const productsSnap = await getDocs(collection(db, "products"));
       
+      // Seed de usuário Admin apenas se não houver NENHUM usuário
       if (usersSnap.empty) {
         await addDoc(collection(db, "users"), {
           name: 'Administrador Lagoon',
@@ -53,95 +51,21 @@ const App: React.FC = () => {
         });
       }
 
-      const hasRealData = productsSnap.docs.some(doc => doc.data().name === 'Pão de Forma');
-      
-      if (!hasRealData) {
-        const fullInventory = [
-          { name: 'Pão de Forma', unit: 'UN', qty: 30 },
-          { name: 'Pão Bisnaguinha', unit: 'UN', qty: 13 },
-          { name: 'Biscoito Vilma', unit: 'PC', qty: 9 },
-          { name: 'Óleo Composto', unit: 'UN', qty: 7 },
-          { name: 'Óleo de Cozinha', unit: 'UN', qty: 63 },
-          { name: 'Vinagre de Maçã', unit: 'UN', qty: 40 },
-          { name: 'Shoyo', unit: 'UN', qty: 2 },
-          { name: 'Molho de Alho', unit: 'UN', qty: 9 },
-          { name: 'Molho de Pimenta 1L', unit: 'UN', qty: 2 },
-          { name: 'Molho de Tomate 1.7kg', unit: 'UN', qty: 10 },
-          { name: 'Batata Palha 400g', unit: 'UN', qty: 4 },
-          { name: 'Molho Vermelhão 1.01kg', unit: 'UN', qty: 2 },
-          { name: 'Caldo SB Carne 1.01kg', unit: 'UN', qty: 11 },
-          { name: 'Grão de Bico', unit: 'UN', qty: 15 },
-          { name: 'Adoçante', unit: 'UN', qty: 6 },
-          { name: 'Fermento (PCT/6)', unit: 'PC', qty: 2 },
-          { name: 'Milho', unit: 'UN', qty: 10 },
-          { name: 'Ervilha', unit: 'UN', qty: 10 },
-          { name: 'Molho de Tomate 300g', unit: 'UN', qty: 21 },
-          { name: 'Farinha de Trigo (PCT10)', unit: 'PC', qty: 3 },
-          { name: 'Suco em Pó Morango', unit: 'UN', qty: 2 },
-          { name: 'Suco em Pó Uva', unit: 'UN', qty: 2 },
-          { name: 'Arroz 5kg (PCT/6)', unit: 'PC', qty: 3 },
-          { name: 'Sal Refinado', unit: 'UN', qty: 10 },
-          { name: 'Feijão 1kg', unit: 'UN', qty: 21 },
-          { name: 'Farofa de Mandioca 1kg', unit: 'UN', qty: 7 },
-          { name: 'Açúcar Refinado 1kg', unit: 'UN', qty: 27 },
-          { name: 'Macarrão Parafuso', unit: 'UN', qty: 47 },
-          { name: 'Sal Sachê', unit: 'CX', qty: 2 },
-          { name: 'Creme de Leite', unit: 'CX', qty: 5 },
-          { name: 'Leite Condensado', unit: 'CX', qty: 2 },
-          { name: 'Veja Supremo', unit: 'UN', qty: 20 },
-          { name: 'Álcool Etílico 1L', unit: 'UN', qty: 6 },
-          { name: 'Bombril', unit: 'PC', qty: 2 },
-          { name: 'Alcaparras', unit: 'UN', qty: 2 },
-          { name: 'Smirnoff', unit: 'UN', qty: 10 },
-          { name: 'Gin', unit: 'UN', qty: 24 },
-          { name: 'Suco Concentrado Manga', unit: 'UN', qty: 8 },
-          { name: 'Leite Integral', unit: 'CX', qty: 1 },
-          { name: 'PCT Garfo', unit: 'PC', qty: 19 },
-          { name: 'Papel Higiênico', unit: 'PC', qty: 13 },
-          { name: 'Papel Toalha', unit: 'PC', qty: 12 },
-          { name: 'Mel 250g', unit: 'UN', qty: 2 },
-          { name: 'Pratinho Isopor', unit: 'PC', qty: 23 },
-          { name: 'Linguiça Calabresa 2.5kg', unit: 'UN', qty: 15 },
-          { name: 'Rolo Folha de Alumínio', unit: 'UN', qty: 2 },
-          { name: 'Papel Manteiga', unit: 'UN', qty: 1 },
-          { name: 'Faca Descartável', unit: 'UN', qty: 20 },
-          { name: 'Toalha de Papel (PCT)', unit: 'PC', qty: 2 },
-          { name: 'Língua (Fechada)', unit: 'CX', qty: 3 },
-          { name: 'Moela', unit: 'PC', qty: 9 },
-          { name: 'Pernil', unit: 'CX', qty: 1 },
-          { name: 'Fígado', unit: 'PC', qty: 2 },
-          { name: 'Carne Moída', unit: 'CX', qty: 1 },
-          { name: 'Barriga', unit: 'PC', qty: 3 },
-          { name: 'Filé de Peixe', unit: 'CX', qty: 2 },
-          { name: 'Sobrecoxa', unit: 'UN', qty: 7 },
-          { name: 'Batata Frita Grossa', unit: 'PC', qty: 26 },
-          { name: 'Batata frita Fina', unit: 'PC', qty: 8 },
-          { name: 'Pão de Alho', unit: 'UN', qty: 38 },
-          { name: 'Iogurte 1.1kg', unit: 'UN', qty: 17 },
-          { name: 'Melancia', unit: 'UN', qty: 3 },
-          { name: 'Energético Tropical', unit: 'UN', qty: 11 },
-          { name: 'Energético Melancia', unit: 'UN', qty: 6 },
-          { name: 'Heineken Long Neck (PCT)', unit: 'PC', qty: 44 },
-          { name: 'Budweiser Long Neck (PCT)', unit: 'PC', qty: 22 },
-          { name: 'Cachaça 51', unit: 'UN', qty: 12 },
-          { name: 'Melão', unit: 'UN', qty: 10 },
-          { name: 'Mamão', unit: 'UN', qty: 9 },
-          { name: 'Abacaxi', unit: 'UN', qty: 4 },
-          { name: 'Uva (PCT)', unit: 'PC', qty: 9 }
+      // SÓ adiciona produtos se o banco de produtos estiver TOTALMENTE VAZIO (0 itens)
+      if (productsSnap.empty) {
+        const initialItems = [
+          { name: 'Heineken Long Neck', unit: 'UN', qty: 24, min: 10 },
+          { name: 'Gin Tanqueray', unit: 'UN', qty: 5, min: 2 },
+          { name: 'Batata Frita 2kg', unit: 'PC', qty: 10, min: 5 },
+          { name: 'Carne Moída', unit: 'KG', qty: 15, min: 5 }
         ];
 
-        if (productsSnap.size <= 6) {
-          for (const d of productsSnap.docs) {
-             await deleteDoc(doc(db, "products", d.id));
-          }
-        }
-
-        for (const item of fullInventory) {
+        for (const item of initialItems) {
           await addDoc(collection(db, "products"), {
             name: item.name,
             unit: item.unit as UnitType,
             quantity: item.qty,
-            minStock: calculateMinStock(item.unit as UnitType),
+            minStock: item.min,
             unitPrice: 0,
             lastUpdated: Date.now()
           });
@@ -152,13 +76,22 @@ const App: React.FC = () => {
     }
   };
 
+  // Função utilitária para o Admin limpar o banco se necessário
+  const clearAllProducts = async () => {
+    if (!window.confirm("ATENÇÃO: Isso apagará TODOS os 213 produtos. Tem certeza?")) return;
+    try {
+      const snap = await getDocs(collection(db, "products"));
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      alert("Banco limpo com sucesso! O sistema irá recarregar os itens básicos.");
+      window.location.reload();
+    } catch (e) { alert("Erro ao limpar."); }
+  };
+
   const handleFirebaseError = (err: any) => {
     console.error("Firebase Error:", err);
-    if (err.code === 'permission-denied' || err.message.includes('permissions')) {
-      setError({ code: 'PERMISSION_DENIED', message: err.message });
-    } else {
-      setError({ code: err.code || 'UNKNOWN', message: err.message });
-    }
+    setError({ code: err.code || 'UNKNOWN', message: err.message });
     setLoading(false);
   };
 
@@ -211,10 +144,6 @@ const App: React.FC = () => {
     const user = users.find(u => u.pin === pin);
     if (user) {
       setCurrentUser(user);
-      if (user.permissions.includes('view_dashboard')) setActiveTab('dashboard');
-      else if (user.permissions.includes('view_inventory')) setActiveTab('inventory');
-      else if (user.permissions.includes('view_movements')) setActiveTab('movements');
-      else if (user.permissions.includes('manage_users')) setActiveTab('users');
       return true;
     }
     return false;
@@ -278,30 +207,18 @@ const App: React.FC = () => {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border-t-8 border-red-600 p-8">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-3xl mb-6 mx-auto">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">Erro de Conexão</h2>
-          <p className="text-gray-600 text-center mb-6">{error.message}</p>
-          <button onClick={() => window.location.reload()} className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all">RECARREGAR</button>
+        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border-t-8 border-red-600 p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Erro de Conexão</h2>
+          <p className="text-gray-600 mb-6">{error.message}</p>
+          <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-8 py-3 rounded-xl font-bold">RECARREGAR</button>
         </div>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 font-medium">Sincronizando Estoque Lagoon...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando Lagoon...</div>;
 
-  if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
-  }
+  if (!currentUser) return <Login onLogin={handleLogin} />;
 
   const stateContext: AppState = { products, movements, users, currentUser };
 
@@ -313,21 +230,22 @@ const App: React.FC = () => {
         <header className="mb-6 flex justify-between items-center">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">Lagoon GastroBar</h1>
-            <p className="text-gray-500 text-xs md:text-sm">Sistema de Controle de Estoque</p>
+            <p className="text-gray-500 text-xs md:text-sm">Controle de Estoque</p>
           </div>
-          <div className="flex items-center space-x-2 md:space-x-3">
-            {hasPermission('register_movements') && (
+          <div className="flex items-center space-x-2">
+            {currentUser.role === 'ADMIN' && (
               <button 
-                onClick={() => setIsMoveModalOpen(true)}
-                className="hidden sm:flex bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 items-center space-x-2"
+                onClick={clearAllProducts}
+                className="text-[10px] bg-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-red-600 hover:text-white transition-colors"
               >
-                <span>🔄</span>
-                <span>Movimentação</span>
+                LIMPAR BANCO (ERRO 213)
               </button>
             )}
-            <div className="h-10 w-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-200">
-              {currentUser.name.charAt(0)}
-            </div>
+            {hasPermission('register_movements') && (
+              <button onClick={() => setIsMoveModalOpen(true)} className="hidden sm:block bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md">
+                🔄 Movimentação
+              </button>
+            )}
           </div>
         </header>
 
@@ -346,23 +264,13 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Floating Action Button for Mobile Movement */}
       {hasPermission('register_movements') && (
-        <button 
-          onClick={() => setIsMoveModalOpen(true)}
-          className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-40 active:scale-90 transition-transform"
-        >
+        <button onClick={() => setIsMoveModalOpen(true)} className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-40">
           🔄
         </button>
       )}
 
-      {isMoveModalOpen && (
-        <MovementModal 
-          products={products} 
-          onClose={() => setIsMoveModalOpen(false)} 
-          onRegister={registerMovement} 
-        />
-      )}
+      {isMoveModalOpen && <MovementModal products={products} onClose={() => setIsMoveModalOpen(false)} onRegister={registerMovement} />}
     </div>
   );
 };
